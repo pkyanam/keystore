@@ -91,6 +91,9 @@ gh release create v1.0.0 dist/KeyStore-1.0.0.dmg dist/KeyStore-1.0.0.zip \
 `.github/workflows/release.yml` runs on any `v*` tag push and performs the same
 sign → notarize → staple → package → publish flow on a macOS runner.
 
+CI uses an **App Store Connect API key** for provisioning and notarization
+(headless‑friendly), plus your Developer ID **signing certificate**.
+
 ### Required repository secrets
 
 Set these under **Settings → Secrets and variables → Actions**:
@@ -101,10 +104,11 @@ Set these under **Settings → Secrets and variables → Actions**:
 | `DEVELOPER_ID_CERT_PASSWORD` | The password you set when exporting the `.p12`. |
 | `KEYCHAIN_PASSWORD` | Any random string; used for the temporary CI keychain. |
 | `APPLE_TEAM_ID` | Your Apple Developer Team ID. |
-| `NOTARY_APPLE_ID` | The Apple ID email used for notarization. |
-| `NOTARY_APP_PASSWORD` | The app‑specific password from step 3 above. |
+| `ASC_KEY_ID` | App Store Connect API **Key ID**. |
+| `ASC_KEY_ISSUER_ID` | App Store Connect API **Issuer ID**. |
+| `ASC_API_KEY_P8_BASE64` | The downloaded `AuthKey_XXXX.p8`, base64‑encoded. |
 
-### Exporting the `.p12`
+### Exporting the signing certificate (`.p12`)
 
 1. Open **Keychain Access**, find **Developer ID Application: …**.
 2. Right‑click → **Export…** → save as `cert.p12` with a password.
@@ -113,5 +117,21 @@ Set these under **Settings → Secrets and variables → Actions**:
    base64 -i cert.p12 | pbcopy   # paste into DEVELOPER_ID_CERT_P12_BASE64
    ```
 
+### Creating the App Store Connect API key
+
+1. Go to <https://appstoreconnect.apple.com/access/integrations/api>.
+2. Create a key with the **Developer** role (sufficient for signing +
+   notarization). Note the **Key ID** and **Issuer ID**.
+3. Download the `AuthKey_XXXXXXXX.p8` (you can only download it once) and
+   base64‑encode it:
+   ```bash
+   base64 -i AuthKey_XXXXXXXX.p8 | pbcopy   # paste into ASC_API_KEY_P8_BASE64
+   ```
+
 Once secrets are configured, every `git push origin vX.Y.Z` builds and publishes
 a signed, notarized release automatically.
+
+> The local `scripts/release.sh` also accepts the same key via `ASC_KEY_ID`,
+> `ASC_KEY_ISSUER`, and `ASC_KEY_PATH` env vars if you prefer key‑based auth
+> locally; otherwise it uses your interactive account + the `keystore-notary`
+> keychain profile.

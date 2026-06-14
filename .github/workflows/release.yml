@@ -49,21 +49,21 @@ jobs:
           security list-keychain -d user -s "$KEYCHAIN_PATH" login.keychain-db
           security find-identity -v -p codesigning "$KEYCHAIN_PATH"
 
-      - name: Store notarization credentials
+      - name: Write App Store Connect API key
+        id: asc
         env:
-          NOTARY_APPLE_ID: ${{ secrets.NOTARY_APPLE_ID }}
-          NOTARY_APP_PASSWORD: ${{ secrets.NOTARY_APP_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          ASC_API_KEY_P8_BASE64: ${{ secrets.ASC_API_KEY_P8_BASE64 }}
         run: |
-          xcrun notarytool store-credentials keystore-notary \
-            --apple-id "$NOTARY_APPLE_ID" \
-            --team-id "$APPLE_TEAM_ID" \
-            --password "$NOTARY_APP_PASSWORD"
+          KEY_PATH="$RUNNER_TEMP/asc_key.p8"
+          echo -n "$ASC_API_KEY_P8_BASE64" | base64 --decode -o "$KEY_PATH"
+          echo "key_path=$KEY_PATH" >> "$GITHUB_OUTPUT"
 
       - name: Build, sign, notarize, package
         env:
           TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          NOTARY_PROFILE: keystore-notary
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_KEY_ISSUER: ${{ secrets.ASC_KEY_ISSUER_ID }}
+          ASC_KEY_PATH: ${{ steps.asc.outputs.key_path }}
         run: |
           ./scripts/release.sh "${{ steps.version.outputs.version }}"
 
