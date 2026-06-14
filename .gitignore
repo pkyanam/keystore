@@ -1,0 +1,22 @@
+# Build & release artifacts
+build/
+dist/
+*.xcarchive
+*.dmg
+*.zip
+*.p12
+ExportOptions.plist
+
+# Xcode
+DerivedData/
+*.xcuserstate
+xcuserdata/
+*.xcscmblueprint
+*.xccheckout
+
+# macOS
+.DS_Store
+
+# Swift Package Manager
+.build/
+.swiftpm/
