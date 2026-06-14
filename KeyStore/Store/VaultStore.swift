@@ -33,6 +33,11 @@ final class VaultStore {
     /// re-prompting for Touch ID.
     var suppressAutoUnlock: Bool = false
 
+    /// Set when the master key was retrieved but the existing vault file could
+    /// not be decrypted (key/vault mismatch or corruption). The UI offers a
+    /// reset in this state. The (working) key is retained so reset can rebuild.
+    private(set) var needsReset: Bool = false
+
     private let fileURL: URL
     private let keyProvider: VaultKeyProviding
     private var key: SymmetricKey?
@@ -65,15 +70,15 @@ final class VaultStore {
         guard lockState != .unlocked else { return }
         lockState = .unlocking
         errorMessage = nil
+        needsReset = false
 
+        // 1. Acquire the master key (biometric prompt, off the main thread).
         let provider = keyProvider
+        let key: SymmetricKey
         do {
-            let key = try await Task.detached(priority: .userInitiated) {
+            key = try await Task.detached(priority: .userInitiated) {
                 try provider.loadOrCreateKey(reason: reason)
             }.value
-            self.key = key
-            self.entries = try loadVault(with: key).entries
-            self.lockState = .unlocked
         } catch {
             self.key = nil
             self.lockState = .locked
@@ -82,6 +87,48 @@ final class VaultStore {
             } else {
                 self.errorMessage = error.localizedDescription
             }
+            return
+        }
+
+        // 2. Decrypt the vault. A failure here means the key works but the file
+        //    can't be authenticated — a mismatch/corruption, which we surface
+        //    with a recovery path rather than a raw crypto error.
+        self.key = key
+        do {
+            self.entries = try loadVault(with: key).entries
+            self.lockState = .unlocked
+        } catch {
+            self.entries = []
+            self.lockState = .locked
+            self.needsReset = true
+            self.errorMessage = "This vault can't be unlocked with the current key. "
+                + "It was likely created by a different (differently signed) build of KeyStore."
+        }
+    }
+
+    /// Recovery for the `needsReset` state: archives the unreadable vault file
+    /// and starts a fresh, empty vault encrypted with the current key.
+    /// Destroys access to the old entries — only used after a decrypt failure.
+    func resetVault() {
+        guard let key else {
+            errorMessage = "Unlock first."
+            return
+        }
+        if FileManager.default.fileExists(atPath: fileURL.path) {
+            let stamp = Int(Date().timeIntervalSince1970)
+            let backup = fileURL.appendingPathExtension("unreadable-\(stamp).bak")
+            try? FileManager.default.moveItem(at: fileURL, to: backup)
+        }
+        entries = []
+        needsReset = false
+        errorMessage = nil
+        do {
+            let data = try VaultCrypto.seal(Vault(entries: []), with: key)
+            try VaultStore.ensureDirectoryExists(for: fileURL)
+            try data.write(to: fileURL, options: [.atomic, .completeFileProtection])
+            lockState = .unlocked
+        } catch {
+            errorMessage = "Failed to reset vault: \(error.localizedDescription)"
         }
     }
 

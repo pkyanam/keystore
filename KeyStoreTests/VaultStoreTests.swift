@@ -96,6 +96,37 @@ struct VaultStoreTests {
         #expect(store.entries.isEmpty)
     }
 
+    @Test func keyMismatchTriggersResetThenRecovers() async {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("keystore-tests-\(UUID().uuidString)", isDirectory: true)
+            .appendingPathComponent("vault.dat")
+
+        // Create a vault with key A.
+        let providerA = FakeKeyProvider(key: SymmetricKey(size: .bits256))
+        let storeA = VaultStore(fileURL: url, keyProvider: providerA)
+        await storeA.unlock()
+        storeA.add(Entry(key: "X", value: "1"))
+
+        // Open the same file with a different key B → cannot decrypt.
+        let providerB = FakeKeyProvider(key: SymmetricKey(size: .bits256))
+        let storeB = VaultStore(fileURL: url, keyProvider: providerB)
+        await storeB.unlock()
+        #expect(!storeB.isUnlocked)
+        #expect(storeB.needsReset)
+
+        // Reset rebuilds an empty vault encrypted with key B.
+        storeB.resetVault()
+        #expect(storeB.isUnlocked)
+        #expect(storeB.entries.isEmpty)
+        #expect(!storeB.needsReset)
+
+        // Reopening with key B now succeeds.
+        let storeB2 = VaultStore(fileURL: url, keyProvider: providerB)
+        await storeB2.unlock()
+        #expect(storeB2.isUnlocked)
+        #expect(storeB2.entries.isEmpty)
+    }
+
     @Test func categoriesAreDistinctAndSorted() async {
         let (store, _) = makeStore()
         await store.unlock()
