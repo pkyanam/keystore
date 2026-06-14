@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// The unlocked catalog: search, scroll, add, and edit entries.
 struct EntryListView: View {
@@ -6,6 +7,15 @@ struct EntryListView: View {
 
     @State private var showingAdd = false
     @State private var editingEntry: Entry?
+
+    // Backup / restore state.
+    @State private var showExportPassphrase = false
+    @State private var exportDocument: BackupDocument?
+    @State private var showExporter = false
+    @State private var showImporter = false
+    @State private var pendingImportData: Data?
+    @State private var showImportPassphrase = false
+    @State private var statusMessage: String?
 
     var body: some View {
         @Bindable var store = store
@@ -29,6 +39,18 @@ struct EntryListView: View {
                 }
                 .listStyle(.inset)
             }
+
+            if let statusMessage {
+                Divider()
+                HStack(spacing: 6) {
+                    Image(systemName: "info.circle")
+                    Text(statusMessage).font(.caption)
+                    Spacer()
+                }
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .sheet(isPresented: $showingAdd) {
@@ -40,6 +62,59 @@ struct EntryListView: View {
                 onSave: { store.update($0) },
                 onDelete: { store.delete($0) }
             )
+        }
+        .sheet(isPresented: $showExportPassphrase) {
+            ExportPassphraseSheet { document in
+                exportDocument = document
+                showExporter = true
+            }
+        }
+        .sheet(isPresented: $showImportPassphrase) {
+            if let data = pendingImportData {
+                ImportPassphraseSheet(data: data) { count in
+                    statusMessage = "Imported \(count) \(count == 1 ? "entry" : "entries")."
+                }
+            }
+        }
+        .fileExporter(
+            isPresented: $showExporter,
+            document: exportDocument,
+            contentType: .json,
+            defaultFilename: defaultBackupFilename()
+        ) { result in
+            if case .failure(let error) = result {
+                statusMessage = "Export failed: \(error.localizedDescription)"
+            } else {
+                statusMessage = "Backup exported."
+            }
+        }
+        .fileImporter(
+            isPresented: $showImporter,
+            allowedContentTypes: [.json]
+        ) { result in
+            handleImportSelection(result)
+        }
+    }
+
+    private func defaultBackupFilename() -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        return "KeyStore-Backup-\(formatter.string(from: Date()))"
+    }
+
+    private func handleImportSelection(_ result: Result<URL, Error>) {
+        switch result {
+        case .success(let url):
+            let didAccess = url.startAccessingSecurityScopedResource()
+            defer { if didAccess { url.stopAccessingSecurityScopedResource() } }
+            do {
+                pendingImportData = try Data(contentsOf: url)
+                showImportPassphrase = true
+            } catch {
+                statusMessage = "Couldn't read file: \(error.localizedDescription)"
+            }
+        case .failure(let error):
+            statusMessage = "Import canceled: \(error.localizedDescription)"
         }
     }
 
@@ -54,8 +129,16 @@ struct EntryListView: View {
             .help("Add entry")
 
             Menu {
-                Button("Lock Now") { store.lock() }
+                Button("Export Backup…") {
+                    statusMessage = nil
+                    showExportPassphrase = true
+                }
+                Button("Import Backup…") {
+                    statusMessage = nil
+                    showImporter = true
+                }
                 Divider()
+                Button("Lock Now") { store.lock() }
                 Button("Quit KeyStore") { NSApplication.shared.terminate(nil) }
             } label: {
                 Image(systemName: "ellipsis.circle")

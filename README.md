@@ -22,6 +22,8 @@ unlock per session.
   tag. Secret values are never searched.
 - 🏷️ **Categories & tags** — organize entries (e.g. *API Keys*, *Recovery Codes*).
 - 📋 **One‑click copy** — copy a value to the clipboard; reveal/hide on demand.
+- 💾 **Encrypted backup & restore** — export a passphrase‑protected backup and
+  restore it on any machine (merge or replace).
 - 🔒 **Auto‑lock** — the vault relocks after a period of inactivity, or instantly
   with **Lock Now**.
 - 🧰 **No Dock icon, no clutter** — runs as a menu bar accessory only.
@@ -78,7 +80,22 @@ xcodebuild -scheme KeyStore -configuration Debug build
    optionally a **Category** and **Tags**.
 4. **Search** at the top to filter; click the **eye** to reveal a value or the
    **copy** button to put it on your clipboard.
-5. Use the **⋯** menu to **Lock Now** or **Quit**.
+5. Use the **⋯** menu to **Export/Import a backup**, **Lock Now**, or **Quit**.
+
+### Backup & restore
+
+From the **⋯** menu:
+
+- **Export Backup…** — choose a passphrase; KeyStore writes an encrypted
+  `KeyStore-Backup-YYYY-MM-DD.json` file (you pick the location). The passphrase
+  is **not stored anywhere** — keep it safe; it can't be recovered.
+- **Import Backup…** — pick a backup file, enter its passphrase, and choose to
+  **merge** (add to your current entries) or **replace** (swap them out).
+
+Backups are encrypted with a key derived from your passphrase
+(PBKDF2‑HMAC‑SHA256, 600k iterations) and sealed with AES‑256‑GCM — independent
+of the device Keychain, so they restore on any Mac. This is also the
+recommended way to recover if your device master key ever changes.
 
 ---
 
@@ -98,8 +115,9 @@ accessible after biometric/passcode authentication.
 
 > ⚠️ **Recovery:** Because the master key is bound to your Mac's Keychain and is
 > **device‑only**, it is not backed up or synced. If you erase your Mac or your
-> login keychain, the vault becomes unrecoverable. Encrypted export/import is on
-> the roadmap — until then, keep an independent backup of anything critical.
+> login keychain, the on‑disk vault becomes unrecoverable. Use **Export Backup**
+> regularly and store the encrypted backup (plus its passphrase) somewhere safe —
+> that's your portable recovery path.
 
 This project leans on Apple's documented best practices (Keychain Services,
 LocalAuthentication, TN3137, CryptoKit). See [`SECURITY`](#reporting-a-vulnerability)
@@ -122,7 +140,8 @@ KeyStore/
 │   └── Vault.swift            # Codable container (versioned)
 ├── Security/
 │   ├── MasterKeyStore.swift   # Keychain master key (biometric SecAccessControl)
-│   ├── VaultCrypto.swift      # AES‑GCM seal/open
+│   ├── VaultCrypto.swift      # AES‑GCM seal/open (device vault)
+│   ├── VaultBackup.swift      # passphrase backup (PBKDF2 + AES‑GCM)
 │   ├── Biometrics.swift       # availability checks for UI labels
 │   └── KeychainError.swift
 ├── Store/
@@ -132,7 +151,8 @@ KeyStore/
     ├── UnlockView.swift
     ├── EntryListView.swift     # search + scroll + add
     ├── EntryRow.swift          # reveal / copy
-    └── EntryEditorView.swift   # add / edit / delete
+    ├── EntryEditorView.swift   # add / edit / delete
+    └── BackupViews.swift       # export/import passphrase sheets + document
 
 Config/      # Info.plist + entitlements (referenced via build settings)
 KeyStoreTests/   # Swift Testing unit tests (no Keychain needed — injected key)

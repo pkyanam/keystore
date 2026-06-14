@@ -167,6 +167,37 @@ final class VaultStore {
         persist()
     }
 
+    // MARK: - Backup / restore
+
+    enum ImportStrategy {
+        /// Add imported entries; entries with a matching id are overwritten.
+        case merge
+        /// Discard current entries and use only the imported ones.
+        case replace
+    }
+
+    /// Produces an encrypted, passphrase-protected backup of the current vault.
+    func makeBackup(passphrase: String) throws -> Data {
+        try VaultBackup.export(Vault(entries: entries), passphrase: passphrase)
+    }
+
+    /// Decrypts a backup and merges or replaces the current entries, then saves.
+    /// Returns the number of entries that came from the backup.
+    @discardableResult
+    func importBackup(data: Data, passphrase: String, strategy: ImportStrategy) throws -> Int {
+        let imported = try VaultBackup.import(data, passphrase: passphrase).entries
+        switch strategy {
+        case .replace:
+            entries = imported
+        case .merge:
+            var byID = Dictionary(entries.map { ($0.id, $0) }, uniquingKeysWith: { _, new in new })
+            for entry in imported { byID[entry.id] = entry }
+            entries = Array(byID.values)
+        }
+        persist()
+        return imported.count
+    }
+
     // MARK: - Persistence
 
     private func loadVault(with key: SymmetricKey) throws -> Vault {

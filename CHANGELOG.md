@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-06-14
+
+### Added
+- **Encrypted backup & restore.** Export the vault to a passphrase-protected
+  file (PBKDF2-HMAC-SHA256 + AES-256-GCM) and import it on any machine, with
+  **merge** or **replace** strategies. Backups are independent of the device
+  master key, so they survive key changes and machine migrations.
+- Graceful recovery when the vault can't be decrypted with the current key: a
+  clear message plus a confirmable **Reset Vault** action (archives the old file).
+
+### Changed
+- App version now tracks `MARKETING_VERSION` via the bundle Info.plist.
+- Removed the hardcoded development team from the project so contributors build
+  with their own signing identity.
+
 ## [1.0.0] - 2026-06-14
 
 ### Added
@@ -21,5 +36,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Auto‑lock after inactivity and a manual **Lock Now** action.
 - Developer ID signing + notarization release pipeline (local script + CI).
 
-[Unreleased]: https://github.com/pkyanam/keystore/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/pkyanam/keystore/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/pkyanam/keystore/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/pkyanam/keystore/releases/tag/v1.0.0
