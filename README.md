@@ -7,7 +7,7 @@ access to — from one simple interface that lives in your menu bar.
 Everything is encrypted on disk and protected behind a single **Touch ID**
 unlock per session.
 
-> **Status:** v1.0 · macOS 14 (Sonoma) or later · Apple Silicon & Intel
+> **Status:** v1.1.0 · macOS 14 (Sonoma) or later · Apple Silicon & Intel
 
 ---
 
@@ -197,10 +197,10 @@ xcrun notarytool store-credentials keystore-notary \
   --apple-id "you@example.com" --team-id "YOURTEAMID" --password "app-specific-pw"
 
 # Build, sign (Developer ID), notarize, staple, and package into dist/
-TEAM_ID=YOURTEAMID ./scripts/release.sh 1.0.0
+TEAM_ID=YOURTEAMID ./scripts/release.sh 1.1.0
 ```
 
-This produces `dist/KeyStore-1.0.0.dmg` and `dist/KeyStore-1.0.0.zip`.
+This produces `dist/KeyStore-1.1.0.dmg` and `dist/KeyStore-1.1.0.zip`.
 
 CI (`.github/workflows/release.yml`) does the same automatically when you push a
 `v*` tag, using repository secrets.
